@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The All Seeing Browser</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<header>
+  <img class="brand-logo" src="assets/logo.svg" alt="The All Seeing Browser">
+  <h1 class="reader-title">The All Seeing Browser</h1>
+  <p>Modern browsers tell websites a lot of information that you wouldn't expect. All information is kept private and never sent anywhere, unless you click Grab IP.</p>
+  <div class="tools">
+    <input type="search" id="q" placeholder="Filter all fields...">
+    <button id="options" class="alt">Options</button>
+    <div id="optionsPanel" hidden>
+      <button id="permissions">Ask for all permissions</button>
+      <button id="clip" class="alt">Read my clipboard</button>
+      <button id="copyall" class="alt">Copy report</button>
+      <button id="download" class="alt">Download JSON</button>
+      <button id="downloadText" class="alt">Download text</button>
+      <button id="snapshot" class="alt">Save browser snapshot</button>
+      <button id="compare" class="alt">Compare snapshots</button>
+      <button id="clearSnapshots" class="alt">Clear snapshots</button>
+      <button id="print" class="alt">Print / Save PDF</button>
+      <button id="demoMedia" class="alt">Demo camera/mic</button>
+      <button id="demoScreen" class="alt">Demo screen capture</button>
+      <button id="demoNotify" class="alt">Demo notifications</button>
+      <button id="demoDisplays" class="alt">Detect monitors</button>
+    </div>
+  </div>
+</header>
+<section id="sum" hidden></section>
+<nav id="quicknav" aria-label="Sections"></nav>
+<main id="main">
+</main>
+<button id="top" class="back-top" type="button">Back to top</button>
+<script src="src/scripts.js"></script>
+</body>
+</html>
