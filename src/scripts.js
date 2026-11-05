@@ -13,7 +13,8 @@ function show(id,title,obj,live,note){
   var el=document.getElementById("c_"+id);
   if(!el){el=document.createElement("section");el.id="c_"+id;main.appendChild(el)}
   el.hidden=false;
-  el.className="card"+(live?" live":"");
+  el.classList.add("card");
+  el.classList.toggle("live",!!live);
   data[title]=obj;
   var nav=document.getElementById("quicknav"),link=document.getElementById("nav_"+id);
   if(nav&&!link){link=document.createElement("a");link.id="nav_"+id;link.href="#c_"+id;link.textContent=title;nav.appendChild(link)}
@@ -240,6 +241,19 @@ live();
 
 (function(){
 var el=document.getElementById("sum"),last="";
+function selectionOffsets(root){
+  var s=document.getSelection();if(!s||s.rangeCount===0||!s.anchorNode||!s.focusNode||!root.contains(s.anchorNode)||!root.contains(s.focusNode))return null;
+  function offset(node,position){var r=document.createRange();r.selectNodeContents(root);r.setEnd(node,position);return r.toString().length}
+  return {start:offset(s.anchorNode,s.anchorOffset),end:offset(s.focusNode,s.focusOffset)};
+}
+function restoreSelection(root,selection){
+  if(!selection)return;
+  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[],node,total=0;
+  while(node=walker.nextNode()){nodes.push({node:node,start:total,end:total+node.nodeValue.length});total+=node.nodeValue.length}
+  function point(value){for(var i=0;i<nodes.length;i++)if(value<=nodes[i].end)return[nodes[i].node,Math.max(0,value-nodes[i].start)];return nodes.length?[nodes[nodes.length-1].node,nodes[nodes.length-1].node.nodeValue.length]:[root,0]}
+  var start=point(Math.min(selection.start,total)),end=point(Math.min(selection.end,total)),range=document.createRange(),s=document.getSelection();
+  range.setStart(start[0],start[1]);range.setEnd(end[0],end[1]);s.removeAllRanges();s.addRange(range);
+}
 function b(t){return"<b>"+esc(t)+"</b>"}
 function J(a){a[0]=a[0].charAt(0).toUpperCase()+a[0].slice(1);return(a.length>2?a.slice(0,-1).join(", ")+", and "+a[a.length-1]:a.join(" and "))+"."}
 function os(){var ua=n.userAgent,p=(uad&&uad.platform)||"";if(/Android/.test(ua))return"an Android device";if(/iPhone/.test(ua))return"an iPhone";if(/iPad/.test(ua))return"an iPad";if(/CrOS/.test(ua))return"a Chromebook";if(/Windows/i.test(p+ua))return"a Windows machine";if(/mac/i.test(p)||/Macintosh|Mac OS X/.test(ua))return"a Mac";if(/Linux|X11/.test(ua))return"a Linux machine";return""}
@@ -266,7 +280,7 @@ function build(){
  p.push(x>10?"you've been idle for "+b(x+" seconds"):"you're "+b("active")+" right now");
  S.push(J(p));
  return"<p>"+S.join(" ")+"</p>"}
-function render(){var h=build();if(h!==last){last=h;el.innerHTML=h;el.hidden=false}}
+function render(){var h=build();if(h!==last){var selection=selectionOffsets(el);last=h;el.innerHTML=h;el.hidden=false;restoreSelection(el,selection)}}
 render();setInterval(render,250);
 })();
 show("geo","Location",{"Status":"Not requested yet. Press Ask for all permissions above to reveal it."});
