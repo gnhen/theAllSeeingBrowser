@@ -7,7 +7,7 @@ function cardTitle(title){return'<div class="card-head"><button class="card-titl
 function applyCardState(el){var state=cardState[el.id]||{};el.classList.toggle("collapsed",!!state.collapsed);var b=el.querySelector(".card-title");if(b)b.setAttribute("aria-expanded",String(!state.collapsed))}
 var optionsButton=document.getElementById("options"),optionsPanel=document.getElementById("optionsPanel");
 optionsButton.addEventListener("click",function(){optionsPanel.hidden=!optionsPanel.hidden});
-["id","time","scr","hw","gpu","net","sto","perm","med","font","fp","extra","devices","privacy","snap","compare","behavior","drop","ext","bat","geo","live","inp","log"].forEach(function(i){var s=document.createElement("section");s.id="c_"+i;s.className="card";if(i==="behavior")s.innerHTML=cardTitle("Behavior diagnostics")+'<textarea id="typing" placeholder="Type here to measure typing rhythm"></textarea><div id="typingResult" class="note">Type in the box above to measure the time between keystrokes.</div><div id="dropzone" class="dropzone">Drop a file here</div><div id="pastepreview" class="note">Paste an image here to preview it.</div>';else s.innerHTML='<div class="note">Loading...</div>';if(i==="ext"||i==="snap"||i==="compare"||i==="drop")s.hidden=true;main.appendChild(s);applyCardState(s)});
+["id","time","scr","hw","gpu","net","sto","perm","med","font","fp","extra","devices","privacy","snap","compare","behavior","drop","ext","bat","geo","live","inp","log"].forEach(function(i){var s=document.createElement("section");s.id="c_"+i;s.className="card";if(i==="behavior")s.innerHTML=cardTitle("Behavior diagnostics")+'<textarea id="typing" placeholder="Type here to measure typing rhythm"></textarea><div id="typingResult" class="note">Type in the box above to measure the time between keystrokes.</div><div id="dropzone" class="dropzone">Drop a file here<br><label><input id="filebox" type="file"> Choose a file</label></div><div id="pastepreview" class="note">Paste an image here to preview it.</div>';else s.innerHTML='<div class="note">Loading...</div>';if(i==="ext"||i==="snap"||i==="compare"||i==="drop")s.hidden=true;main.appendChild(s);applyCardState(s)});
 function esc(s){return String(s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
 function show(id,title,obj,live,note){
   var el=document.getElementById("c_"+id);
@@ -315,6 +315,38 @@ document.getElementById("snapshot").onclick=function(){var snapshots=JSON.parse(
 document.getElementById("compare").onclick=function(){var snapshots=JSON.parse(localStorage.getItem("browserSnapshots")||"[]");if(!snapshots.length)return show("compare","Browser comparison",{"Result":"Save a snapshot first"});var fields={},out={};snapshots.forEach(function(s){for(var card in s.data)for(var field in s.data[card])fields[card+" / "+field]=true});Object.keys(fields).forEach(function(field){out[field]=snapshots.map(function(s){var p=field.split(" / "),v=s.data[p[0]]&&s.data[p[0]][p[1]];return s.browser+": "+(v===undefined?"n/a":v)}).join(" | ")});show("compare","Browser comparison",out)};
 document.getElementById("clearSnapshots").onclick=function(){localStorage.removeItem("browserSnapshots");var el=document.getElementById("c_snap"),compare=document.getElementById("c_compare");if(el)el.hidden=true;if(compare)compare.hidden=true};
 document.getElementById("print").onclick=function(){print()};
+function imageMetadata(file){
+  return file.arrayBuffer().then(function(buffer){
+    var view=new DataView(buffer),out={},u8=new Uint8Array(buffer);
+    function text(start,length){return new TextDecoder().decode(u8.slice(start,start+length)).replace(/\0/g,"").trim()}
+    function add(name,value){if(value!==undefined&&value!==null&&value!=="")out[name]=String(value)}
+    function parseTiff(base,limit){
+      if(base+8>limit)return;
+      var little=view.getUint16(base, false)===0x4949, get16=function(p){return view.getUint16(p,little)},get32=function(p){return view.getUint32(p,little)};
+      if(get16(base+2)!==42)return;
+      var tags={"010e":"Image description","010f":"Camera make","0110":"Camera model","0112":"Orientation","011a":"X resolution","011b":"Y resolution","0128":"Resolution unit","0131":"Software","0132":"Date/time","013b":"Artist","8298":"Copyright","8769":"Exif IFD","8825":"GPS IFD","9003":"Date/time original","9004":"Date/time digitized","9101":"Components configuration","9201":"Shutter speed","9202":"Aperture","9204":"Exposure bias","9207":"Metering mode","9209":"Flash","920a":"Focal length","927c":"Maker note","a001":"Color space","a002":"Pixel width","a003":"Pixel height","a405":"Focal length 35mm","a406":"Scene capture type"},seen={};
+      function readIfd(offset,section){
+        if(!offset||offset+2>limit||seen[offset])return;seen[offset]=true;
+        var count=get16(offset);if(count>512||offset+2+count*12>limit)return;
+        for(var i=0;i<count;i++){var p=offset+2+i*12,tag=get16(p).toString(16).padStart(4,"0"),type=get16(p+2),number=get32(p+4),size={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8}[type];if(!size||number>100000)continue;var bytes=number*size,pos=bytes<=4?p+8:get32(p+8)+base;if(pos<base||pos+bytes>limit)continue;var value=[];
+          for(var j=0;j<number&&j<32;j++){var q=pos+j*size;if(type===2||type===7)value.push(view.getUint8(q));else if(type===1)value.push(view.getUint8(q));else if(type===3)value.push(get16(q));else if(type===4)value.push(get32(q));else if(type===5)value.push(get32(q)/Math.max(1,get32(q+4)));else if(type===9)value.push(view.getInt32(q,little));else if(type===10)value.push(view.getInt32(q,little)/Math.max(1,view.getInt32(q+4,little)))}
+          var name=(section?section+" ":"")+(tags[tag]||"Tag 0x"+tag);
+          if(type===2||type===7){var raw=value.map(function(x){return String.fromCharCode(x)}).join("").replace(/\0/g,"").trim();add(name,raw)}else add(name,value.length===1?value[0]:value.join(", "));
+          if(tag==="8769"||tag==="8825")readIfd(get32(p+8)+base,tag==="8825"?"GPS":"EXIF");
+        }
+      }
+      readIfd(base+get32(base+4),"");
+    }
+    if(view.getUint16(0,false)===0xffd8){var p=2;while(p+4<view.byteLength){if(view.getUint8(p)!==0xff)break;var marker=view.getUint8(p+1),length=view.getUint16(p+2,false);if(marker===0xe1&&text(p+4,6)==="Exif"){parseTiff(p+10, p+2+length);break}p+=2+length}}
+    if(text(0,8)==="\x89PNG\r\n\x1a\n"){var p=8;while(p+12<=view.byteLength){var length=view.getUint32(p),kind=text(p+4,4);if((kind==="tEXt"||kind==="iTXt"||kind==="zTXt")&&length<100000)add("PNG "+kind,text(p+8,length));p+=12+length;if(kind==="IEND")break}}
+    return out;
+  }).catch(function(){return{"Metadata":"Could not read this image locally"}});
+}
+function inspectImage(file){
+  var base={"File name":file.name,"Type":file.type||"unknown","Size":bytes(file.size),"Last modified":new Date(file.lastModified).toString()};
+  if(!/^image\//.test(file.type))return show("drop","Dropped file",base);
+  imageMetadata(file).then(function(meta){var all={};for(var k in base)all[k]=base[k];for(var m in meta)all[m]=meta[m];var url=URL.createObjectURL(file),img=new Image();img.onload=function(){all["Width and height"]=img.naturalWidth+" x "+img.naturalHeight;URL.revokeObjectURL(url);show("drop","Image file and EXIF metadata",all)};img.src=url;show("drop","Image file and EXIF metadata",all)});
+}
 main.addEventListener("click",function(e){
  if(e.target.id==="grab-ip")return grabPublicIp();
  if(e.target.id==="grab-local-ip")return grabLocalIp();
@@ -326,7 +358,8 @@ main.addEventListener("click",function(e){
  cardState[card.id]=state;applyCardState(card);saveCardState();applyFilter();
 });
 document.getElementById("dropzone").addEventListener("dragover",function(e){e.preventDefault()});
-document.getElementById("dropzone").addEventListener("drop",function(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)show("drop","Dropped file",{"Name":f.name,"Type":f.type||"unknown","Size":bytes(f.size),"Last modified":new Date(f.lastModified).toString()})});
+document.getElementById("dropzone").addEventListener("drop",function(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)inspectImage(f)});
+document.getElementById("filebox").addEventListener("change",function(e){if(e.target.files[0])inspectImage(e.target.files[0])});
 document.addEventListener("paste",function(e){var f=Array.prototype.find.call(e.clipboardData.files,function(x){return /^image\//.test(x.type)});if(!f)return;var img=document.createElement("img");img.className="preview";img.src=URL.createObjectURL(f);var p=document.getElementById("pastepreview");p.textContent="Pasted image: "+f.type+", "+bytes(f.size);p.appendChild(img);show("drop","Pasted image",{"Type":f.type,"Size":bytes(f.size),"Width and height":"loading..."}) ;img.onload=function(){show("drop","Pasted image",{"Type":f.type,"Size":bytes(f.size),"Width and height":img.naturalWidth+" x "+img.naturalHeight})}});
 document.getElementById("demoMedia").onclick=function(){if(!n.mediaDevices||!n.mediaDevices.getUserMedia)return show("perm","Permission requests",{"Camera and microphone":"not supported"});n.mediaDevices.getUserMedia({video:true,audio:true}).then(function(s){s.getTracks().forEach(function(t){t.stop()});show("perm","Permission requests",{"Camera and microphone":"granted (stream stopped immediately)"})},function(e){show("perm","Permission requests",{"Camera and microphone":e.name||"denied"})})};
 document.getElementById("demoScreen").onclick=function(){if(!n.mediaDevices||!n.mediaDevices.getDisplayMedia)return show("perm","Permission requests",{"Screen capture":"not supported"});n.mediaDevices.getDisplayMedia({video:true}).then(function(s){s.getTracks().forEach(function(t){t.stop()});show("perm","Permission requests",{"Screen capture":"granted (stream stopped immediately)"})},function(e){show("perm","Permission requests",{"Screen capture":e.name||"denied"})})};
