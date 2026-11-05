@@ -138,3 +138,4 @@ This project is for education and awareness. It reads only your own browser and 
 
 ## License
 
+This project is licensed under the [GNU General Public License v3.0](/LICENSE.md). Click to read more.
